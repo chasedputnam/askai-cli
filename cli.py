@@ -1,73 +1,93 @@
-import io
 import os
 
 import click
 
 from openai_client import build_openai_client
 from log_response import LogResponse
+from load_properties import load_properties
 
 
 @click.command()
-@click.argument("source", type=click.File("rt", encoding="utf-8"))
-@click.option("-t", "--token", default="", help="OpenAI API token")
+@click.option("-k", "--key", default="", help="API key")
 @click.option(
     "-m", "--model", default="gpt-3.5-turbo", help="OpenAI model option. (i.e. gpt-3.5-turbo)"
 )
 @click.option("-f", "--folder", default="", help="Conversation log storage folder")
-def cli(source: io.TextIOWrapper, token: str, model: str, file: str):
-    """Create response log file to append into"""
-    log = LogResponse(path=file)
+@click.option("-p", "--propertyfile", default="askai.properties", help="Location of the properties file for askai")
+def cli(key: str, model: str, folder: str, propertyfile: str):
+    """Ask your AI of choice a query. Start out with something like 'hey chatgpt', 'chatgpt', 'hey bard' or 'bard'"""
+    properties = load_properties_file(propertyfile)
+    log = LogResponse(path=get_log_path(folder, properties))
     log.create_rotating_chat_logger()
-    """Start interactive shell session for OpenAI completion API."""
-    client = build_openai_client(token=get_token(token), api_url=get_openai_api_url())
+    client = build_openai_client(token=get_api_key(key, properties), api_url=get_openai_api_url(properties))
     while True:
         prompt = input("Prompt: ")
-        log.print_and_log(prompt)
+        log.log("Prompt: ")
+        log.log(prompt)
         service = check_prompt_prefix_for_service(prompt)
         if service == "google":
             print("Google Bard does not have an API endpoint available for use yet.")
         else:
-            response = client.generate_response(prompt, model)
-            log.print_and_log("Openai:")
-            log.print_and_log(response)
-            log.print_and_log("--------")
+            try:
+                response = client.generate_response(prompt, model)
+                log.print_and_log("Openai: ")
+                log.print_and_log(response)
+                log.print_and_log("--------")
+            except Exception as error:
+                print(error)
+                exit(1)
 
 
-def check_prompt_prefix_for_service(prompt):
-    openai_keywords = ["chatgpt","hey chatgpt","openai","hey openai"]
-    google_keywords = ["bard","hey bard","google","hey google"]
-    stripped_prompt = prompt.strip(prompt, "Prompt: ").lower()
+def check_prompt_prefix_for_service(prompt: str) -> str:
+    openai_keywords = ["chatgpt", "hey chatgpt", "openai", "hey openai", "hey gpt", "gpt"]
+    google_keywords = ["bard", "hey bard", "google", "hey google"]
+    stripped_prompt = prompt.strip("Prompt: ").lower()
     for keyword in openai_keywords:
         if stripped_prompt.startswith(keyword):
             return "openai"
     for keyword in google_keywords:
         if stripped_prompt.startswith(keyword):
             return "google"
-    return ""
+    return "openai"
 
 
-def get_openai_api_url() -> str:
-    return os.environ.get("ASKAI_OPENAI_API_URL", "https://api.openai.com/v1/completions")
+def get_openai_api_url(properties: {}) -> str:
+    if not properties.get('askai_openai_api_url'):
+        return "https://api.openai.com/v1/chat/completions"
+    return properties.get('askai_openai_api_url')
 
 
-def get_log_path(path: str) -> str:
+def get_log_path(path: str, properties: {}) -> str:
     if not path:
-        path = os.environ.get("ASKAI_LOG_FOLDER", "")
+        path = properties.get('askai_log_folder')
     if not path:
         raise click.exceptions.UsageError(
-           message=(
-               "Either --folder (-f) option or ASKAI_LOG_FOLDER environment variable must be provided"
-           )
+            message=(
+                "Either the --folder (-f) option or the askai_log_folder property must be set"
+            )
         )
+    return path
 
 
-def get_token(token: str) -> str:
+def load_properties_file(propertyfile: str) -> {}:
+    if not propertyfile:
+        propertyfile = "./askai.properties"
+    if not os.path.isfile(propertyfile):
+        raise click.exceptions.UsageError(
+            message=(
+                "No askai.properties file was provided nor can be detected"
+            )
+        )
+    return load_properties(propertyfile, '=', '#')
+
+
+def get_api_key(token: str, properties: {}) -> str:
     if not token:
-        token = os.environ.get("ASKAI_OPENAI_API_TOKEN", "")
+        token = properties.get('askai_openai_api_key')
     if not token:
         raise click.exceptions.UsageError(
             message=(
-                "Either --token (-t)  option or ASKAI_OPENAI_API_TOKEN environment variable must be provided"
+                "Either the --key (-k)  option or the askai_openai_api_key property must be set"
             )
         )
     return token

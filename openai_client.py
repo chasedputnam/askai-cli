@@ -26,7 +26,7 @@ class OpenaiClient:
             self._api_url,
             headers=self._headers,
             json={
-                "prompt": prompt,
+                "messages": [{"role": "user", "content": prompt}],
                 "model": model,
                 "max_tokens": self.MAX_TOKENS,
                 "temperature": self.TEMPERATURE,
@@ -34,7 +34,7 @@ class OpenaiClient:
             timeout=self.TIMEOUT,
         )
         response.raise_for_status()
-        return response.json()["choices"][0]["text"].strip()
+        return response.json()["choices"][0]["message"]["content"].strip()
 
 
 def build_openai_client(token: str, api_url: str) -> OpenaiClient:

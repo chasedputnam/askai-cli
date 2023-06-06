@@ -1,0 +1,8 @@
+# -- Conversation Log Location
+# askai_log_folder=
+# -- OpenAI
+# askai_openai_url=https://api.openai.com/v1/chat/completions
+# askai_openai_api_key=
+# askai_openai_model=
+# -- Google Bard
+# askai_google_api_key=
