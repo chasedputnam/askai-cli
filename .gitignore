@@ -3,3 +3,5 @@
 venv/
 askai.properties
 __pycache__/
+*.egg-info/
+dist/

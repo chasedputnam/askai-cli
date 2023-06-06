@@ -13,25 +13,22 @@ from load_properties import load_properties
     "-m", "--model", default="gpt-3.5-turbo", help="OpenAI model option. (i.e. gpt-3.5-turbo)"
 )
 @click.option("-f", "--folder", default="", help="Conversation log storage folder")
-@click.option("-p", "--propertyfile", default="askai.properties", help="Location of the properties file for askai")
-def cli(key: str, model: str, folder: str, propertyfile: str):
+def cli(key: str, model: str, folder: str):
     """Ask your AI of choice a query. Start out with something like 'hey chatgpt', 'chatgpt', 'hey bard' or 'bard'"""
-    properties = load_properties_file(propertyfile)
+    properties = load_properties_file()
     log = LogResponse(path=get_log_path(folder, properties))
     log.create_rotating_chat_logger()
     client = build_openai_client(token=get_api_key(key, properties), api_url=get_openai_api_url(properties))
     while True:
         prompt = input("Prompt: ")
-        log.log("Prompt: ")
-        log.log(prompt)
+        log.log("Prompt: " + prompt)
         service = check_prompt_prefix_for_service(prompt)
         if service == "google":
             print("Google Bard does not have an API endpoint available for use yet.")
         else:
             try:
                 response = client.generate_response(prompt, model)
-                log.print_and_log("Openai: ")
-                log.print_and_log(response)
+                log.print_and_log("Openai: " + response)
                 log.print_and_log("--------")
             except Exception as error:
                 print(error)
@@ -69,16 +66,17 @@ def get_log_path(path: str, properties: {}) -> str:
     return path
 
 
-def load_properties_file(propertyfile: str) -> {}:
-    if not propertyfile:
-        propertyfile = "./askai.properties"
-    if not os.path.isfile(propertyfile):
+def load_properties_file() -> {}:
+    property_file = os.environ.get("ASKAI_PROPERTIES_PATH", "../../askai.properties")
+    print("file: " + property_file)
+    if not os.path.isfile(property_file):
         raise click.exceptions.UsageError(
             message=(
-                "No askai.properties file was provided nor can be detected"
+                "No askai.properties file was provided nor can be detected. " +
+                "Please set the ASKAI_PROPERTIES_PATH environment variable."
             )
         )
-    return load_properties(propertyfile, '=', '#')
+    return load_properties(property_file, '=', '#')
 
 
 def get_api_key(token: str, properties: {}) -> str:
